@@ -1,12 +1,16 @@
 # weather mcp server Project Agent Rules
 
+- ChatGPT 负责学习路线、阶段划分、MCP 概念解释和验收标准。
+- Codex 负责读取仓库、执行命令、创建或修改代码、运行测试并汇报结果。
+- 用户负责手写和复核核心代码，并决定是否进入下一阶段。
+- Codex 不应自行扩大当前阶段范围，不主动加入未要求的抽象层、依赖或功能。
+- 如 Codex 的建议与当前 ChatGPT 制定的阶段计划冲突，以当前阶段计划为准，并先向用户说明。
 
 ## Project Context
 
 - 远程仓库：<https://github.com/syukouyuu/weather-mcp-server.git>
 - MCP 官方参考文档：<https://modelcontextprotocol.io/docs/getting-started/intro>
 - 本项目是 Python MCP 学习项目，当前子项目为 Weather MCP Server。
-
 
 ## Command Boundaries
 
