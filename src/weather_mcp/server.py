@@ -53,7 +53,11 @@ def get_coordinates(city: str) -> dict:
     response.raise_for_status()
     data = response.json()
 
-    result = data["results"][0]
+    results = data.get("results")
+    if not results:
+        raise ValueError(f"City not found: {city}")
+    
+    result = results[0]
 
     return {
         "name": result["name"],
