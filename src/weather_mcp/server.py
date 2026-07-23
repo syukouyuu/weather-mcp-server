@@ -15,7 +15,7 @@ def get_weather_description(weather_code: int) -> str:
         2: "Partly cloudy",
         3: "Overcast",
         45: "Fog",
-        48: "epositing rime fog",
+        48: "Depositing rime fog",
     }
 
     return weather_description.get(weather_code, "Unknown weather")
