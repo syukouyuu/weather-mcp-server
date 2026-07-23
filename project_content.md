@@ -54,40 +54,48 @@ Weather MCP Server 负责：
 
 ---
 
-## Project 2：通用 Remote MCP Client
+## Project 2：Remote MCP Client CLI & Agent Adapter
 
 目标：
 
-使用 Python 开发一个可以连接远程 MCP Server 的客户端，并使用 Notion 官方 MCP Server 作为真实验证对象。
+基于官方 MCP Python SDK，开发一个可以连接远程 MCP Server 的通用客户端应用，并使用 Notion 官方 MCP Server 作为真实验证对象。
 
-该项目用于学习 MCP 的 Client 侧。
+该项目用于学习 MCP 的 Client 侧，但不从零实现 MCP 协议、JSON-RPC、Transport 或完整 Client SDK。
 
 整体结构：
 
 ```text
 Python CLI / 自己的 Agent / OpenClaw / Hermes
                 ↓
-       自己开发的 MCP Client
+ Remote MCP Client CLI & Agent Adapter
+                ↓
+        官方 MCP Python SDK
                 ↓
         Notion 官方 MCP Server
                 ↓
           Notion Workspace
 ```
 
-这个项目不是重新开发 Notion MCP Server，也不是重新封装 Notion REST API。
+本项目不重新开发 Notion MCP Server，也不重新封装 Notion REST API。
 
-重点是开发“如何连接和消费一个已经存在的 MCP Server”。
+官方 MCP Python SDK 负责底层协议处理、消息结构、Transport、Session 和生命周期管理。本项目重点开发 SDK 上层的客户端应用与适配层，包括：
 
-未来很多系统可能出现以下情况：
+* MCP Server 配置管理
+* Streamable HTTP 远程连接
+* OAuth 或 Token 认证
+* Client 初始化与 Session 生命周期管理
+* Server capability 获取
+* Tools、Resources 和 Prompts 发现
+* Tool Schema 展示与参数校验
+* Tool 调用与结果解析
+* 超时、重试和异常处理
+* 日志与 CLI 输出格式化
+* Python Agent Adapter
+* 多个 MCP Server 的配置支持
 
-* 服务方已经提供 MCP Server
-* 但是本地 Agent 或业务程序没有 MCP Client
-* 或者 Agent 框架的 MCP 支持不完整
-* 需要自行开发适配层完成连接
+项目定位：
 
-因此该项目应定位为：
-
-> 开发可复用的远程 MCP Client 和 Agent Adapter，并使用 Notion 官方 MCP Server 完成实际连接、工具发现和工具调用。
+> 基于官方 MCP Python SDK 开发可复用的 Remote MCP Client CLI 与 Agent Adapter，并使用 Notion 官方 MCP Server 完成真实的连接、认证、工具发现和工具调用。
 
 ---
 
@@ -271,63 +279,129 @@ get_weather_forecast(city, days)
 
 ---
 
-# 四、Project 2：Remote MCP Client + Notion
+# 四、Project 2：Remote MCP Client CLI & Agent Adapter
 
 ## 1. 项目定位
 
-该项目主要学习：
+该项目基于官方 MCP Python SDK 开发，不自行实现底层 MCP Client 协议栈。
 
-* MCP Client 初始化
+主要学习：
+
+* 官方 MCP Python SDK 的 Client 用法
 * 远程 MCP Server 连接
-* MCP Session
-* tools/list
-* tools/call
+* MCP Client 初始化与 Session 生命周期
+* Server capabilities
+* tools/list 与 tools/call
+* resources/list 与 prompts/list
 * OAuth 认证
 * Token 保存和刷新
+* CLI 应用设计
 * Agent Tool Adapter
-* CLI 封装
+* 多 Server 配置管理
 
 Notion 只作为一个实际存在的远程 MCP Server 用于验证。
 
-不要开发自己的 Notion MCP Server。
-
-不要重新实现 Notion 官方已经提供的通用工具。
+不要开发自己的 Notion MCP Server，不要重新封装 Notion REST API，也不要重新实现官方 SDK 已经提供的 HTTP、JSON-RPC、Transport 和 Session 功能。
 
 ---
 
-## 2. 推荐结构
+## 2. 技术原则
+
+建议使用：
+
+* Python 3.11 或更高版本
+* uv
+* 官方 MCP Python SDK
+* Typer 或 argparse
+* Pydantic
+* pydantic-settings
+* httpx
+* pytest
+* pytest-asyncio
+* ruff
+* mypy
+
+版本原则：
+
+* 开始开发时固定 MCP SDK 版本，避免学习过程中被破坏性更新影响。
+* 优先使用当时的稳定版本。
+* SDK 升级与迁移单独作为后续任务，不与第一版开发混在一起。
+
+---
+
+## 3. 推荐结构
 
 ```text
 src/
 └── remote_mcp_client/
     ├── __init__.py
     ├── client.py
-    ├── session.py
-    ├── transport.py
-    ├── oauth.py
+    ├── config.py
+    ├── registry.py
+    ├── auth.py
     ├── token_store.py
     ├── models.py
+    ├── exceptions.py
     ├── cli.py
     └── adapters/
         ├── __init__.py
         ├── base.py
-        ├── openclaw.py
-        └── hermes.py
+        └── cli.py
 ```
+
+职责说明：
+
+### client.py
+
+* 封装官方 SDK Client
+* 管理连接和关闭
+* 获取 capabilities
+* 发现 Tools、Resources 和 Prompts
+* 调用 Tool
+* 将 SDK 返回值转换为应用内部模型
+
+### config.py
+
+* 定义单个 MCP Server 配置
+* 读取 URL、认证方式、超时和 Server 名称
+* 不写死 Notion 配置
+
+### registry.py
+
+* 保存和读取多个 MCP Server 配置
+* 根据 Server 名称创建对应 Client
+
+### auth.py / token_store.py
+
+* 处理 OAuth 或 Token 获取
+* 判断 Token 是否过期
+* 刷新 Token
+* 安全保存 Token
+
+### adapters/
+
+* 将 MCP Tool 定义转换为上层 Agent 或 CLI 能使用的格式
+* 第一版只实现基础接口和 CLI Adapter
+
+不需要自行编写 `transport.py` 或 `session.py` 去重复官方 SDK 的底层实现。只有当未来确实需要扩展 SDK 行为时，才增加相应封装。
 
 ---
 
-## 3. 第一版功能范围
+## 4. 第一版功能范围
 
-第一版先实现不包含完整 Agent 集成的 CLI。
+第一版先实现不包含完整 Agent 集成的 CLI，并优先使用无需复杂 OAuth 的测试 MCP Server 完成基础流程。
 
-示例命令：
+建议命令：
 
 ```bash
-mcp-client login
-mcp-client connect
-mcp-client tools
-mcp-client call <tool-name> --arguments '{...}'
+mcp-client server list
+mcp-client server add <name> <url>
+mcp-client connect <server>
+mcp-client tools <server>
+mcp-client tool describe <server> <tool-name>
+mcp-client tool call <server> <tool-name> --json '{...}'
+mcp-client resources <server>
+mcp-client prompts <server>
 ```
 
 核心接口示例：
@@ -337,16 +411,13 @@ class RemoteMcpClient:
     async def connect(self) -> None:
         ...
 
-    async def initialize(self) -> None:
-        ...
-
     async def list_tools(self) -> list[ToolDefinition]:
         ...
 
     async def call_tool(
         self,
         name: str,
-        arguments: dict,
+        arguments: dict[str, object],
     ) -> ToolResult:
         ...
 
@@ -354,13 +425,27 @@ class RemoteMcpClient:
         ...
 ```
 
+客户端不应写死 Notion 的 Tool 名称和参数，应通过 MCP 的工具发现机制动态读取 Tool Schema。
+
+第一版验收标准：
+
+* 可以从配置读取一个远程 MCP Server
+* 可以通过官方 SDK 建立连接
+* 可以完成 initialize
+* 可以列出 Tools
+* 可以展示 Tool Schema
+* 可以调用一个 Tool
+* 可以格式化输出结果
+* 可以正常关闭 Session
+* 连接错误和调用错误有明确提示
+
 ---
 
-## 4. OAuth 和 Token 管理
+## 5. OAuth 和 Token 管理
 
-Notion 官方远程 MCP Server 可能涉及 OAuth。
+基础连接流程完成后，再接入 Notion 官方 MCP Server 并处理 OAuth。
 
-需要学习并实现：
+需要理解和实现：
 
 * Authorization Code Flow
 * PKCE
@@ -371,6 +456,8 @@ Notion 官方远程 MCP Server 可能涉及 OAuth。
 * Token 过期判断
 * Token 刷新
 * Token 本地安全保存
+
+优先使用官方 SDK 已提供的认证能力。只有 SDK 未覆盖的应用层逻辑才自行开发。
 
 Token 不允许：
 
@@ -389,12 +476,14 @@ Token 不允许：
 
 ---
 
-## 5. MCP Client 流程
+## 6. MCP Client 学习流程
 
 客户端至少需要理解和验证以下流程：
 
 ```text
-建立连接
+读取 Server 配置
+  ↓
+官方 SDK 建立连接
   ↓
 initialize
   ↓
@@ -402,31 +491,35 @@ initialize
   ↓
 tools/list
   ↓
-选择 Tool
+读取 Tool Schema
   ↓
 tools/call
   ↓
-接收 Tool Result
+解析 Tool Result
   ↓
 关闭 Session
 ```
 
-不要从底层重新实现 HTTP 或 JSON-RPC，优先使用官方 MCP Python SDK。
+学习重点不是重写底层协议，而是理解官方 SDK 如何完成这些流程，以及如何在其上构建稳定的应用程序。
 
-项目重点是：
+项目重点：
 
-* Session 管理
+* SDK Client 使用
+* Session 生命周期管理
 * 认证管理
-* Tool 发现
+* Tool 动态发现
+* 参数校验
 * Tool 调用
+* 返回结果转换
 * 错误处理
+* 配置管理
 * Agent 接口转换
 
 ---
 
-## 6. Agent Adapter
+## 7. Agent Adapter
 
-MCP Client 完成后，增加统一适配接口：
+CLI 完成后，增加统一适配接口：
 
 ```python
 class AgentToolProvider:
@@ -436,7 +529,7 @@ class AgentToolProvider:
     async def call_tool(
         self,
         name: str,
-        arguments: dict,
+        arguments: dict[str, object],
     ) -> ToolResult:
         ...
 ```
@@ -446,21 +539,23 @@ class AgentToolProvider:
 未来可扩展：
 
 ```text
-Notion MCP Server
-        ↓
-Generic Remote MCP Client
-        ↓
+Notion MCP Server / 其他远程 MCP Server
+                    ↓
+          官方 MCP Python SDK
+                    ↓
+       Remote MCP Client Application
+                    ↓
+CLI Adapter
 OpenClaw Adapter
 Hermes Adapter
-CLI Adapter
 自定义 Python Agent Adapter
 ```
 
-Adapter 第一阶段可以只定义接口和一个简单 CLI Adapter，不需要立刻完成 OpenClaw 和 Hermes 的完整接入。
+Adapter 第一阶段只定义接口和一个 CLI Adapter，不需要立刻完成 OpenClaw 和 Hermes 的完整接入。
 
 ---
 
-# 五、为什么要同时开发 Server 和 Client
+# 五、为什么要同时学习 Server 和 Client
 
 未来企业系统可能出现两种典型情况。
 
@@ -492,19 +587,21 @@ Weather MCP Server 就是这一类的最小实践。
 
 ## 情况二：系统已经提供 MCP Server
 
-例如 Notion 已经提供官方 MCP Server，但本地程序或 Agent 没有合适的 MCP Client。
+例如 Notion 已经提供官方 MCP Server，但本地程序或 Agent 没有合适的 MCP 支持，或者现有支持无法满足配置、认证、日志和业务适配要求。
 
 此时需要开发：
 
 ```text
-Agent / Python程序
-  ↓
-自研 MCP Client 或 Adapter
-  ↓
-官方 MCP Server
+Agent / Python 程序
+        ↓
+自研 Client Application 或 Adapter
+        ↓
+官方 MCP Python SDK
+        ↓
+现有 MCP Server
 ```
 
-Notion Remote MCP Client 就是这一类的实践。
+Project 2 就是这一类的实践。
 
 ---
 
@@ -526,9 +623,8 @@ Notion Remote MCP Client 就是这一类的实践。
 未来 AI 系统落地时，真正需要的工作可能是：
 
 * 将旧系统封装为 MCP Server
-* 将 Agent 接入现有 MCP Server
-* 完成权限控制
-* 完成认证
+* 使用官方 SDK 将业务程序接入现有 MCP Server
+* 完成权限控制和认证
 * 处理既有系统的数据结构
 * 实现 Agent 与业务系统之间的适配层
 
@@ -566,18 +662,33 @@ Notion Remote MCP Client 就是这一类的实践。
 * 测试覆盖
 * README
 
-## Phase 3：Remote MCP Client 最小版本
+## Phase 3：官方 SDK Client 基础学习
 
 完成：
 
-* 连接远程 MCP Server
+* 固定 MCP Python SDK 版本
+* 阅读官方 Client 示例
+* 连接一个简单远程 MCP Server
 * initialize
+* capabilities
 * tools/list
 * tools/call
-* CLI
-* Session 生命周期管理
+* Session 生命周期验证
 
-## Phase 4：Notion OAuth
+## Phase 4：Remote MCP Client CLI
+
+完成：
+
+* Server 配置管理
+* 多 Server Registry
+* Tools、Resources 和 Prompts 展示
+* Tool Schema 展示
+* Tool 调用
+* 结果格式化
+* 错误处理
+* CLI 测试
+
+## Phase 5：Notion OAuth 验证
 
 完成：
 
@@ -585,8 +696,9 @@ Notion Remote MCP Client 就是这一类的实践。
 * Token 保存
 * Token 刷新
 * Notion 官方 MCP 连接验证
+* 至少一次真实 Tool 发现和调用
 
-## Phase 5：Agent Adapter
+## Phase 6：Agent Adapter
 
 完成：
 
@@ -604,7 +716,6 @@ Notion Remote MCP Client 就是这一类的实践。
 1. 不要一次性生成整个项目。
 2. 每次只完成一个阶段。
 3. 每个阶段先说明：
-
    * 本阶段目标
    * 要新增或修改的文件
    * 每个文件的职责
@@ -618,16 +729,18 @@ Notion Remote MCP Client 就是这一类的实践。
 9. 所有外部 API 调用必须有 Timeout。
 10. 所有 Token 和 API Key 必须通过环境变量或安全存储读取。
 11. 测试不能依赖真实外部 API。
-12. 每完成一个阶段，给出我应该手写和重点理解的代码清单。
-13. 不要直接替我完成所有学习过程。
+12. 每完成一个阶段，给出用户应该手写和重点理解的代码清单。
+13. 不要直接替用户完成所有学习过程。
 14. 当有多种实现方式时，优先选择最容易理解且符合官方 SDK 用法的方案。
 15. 修改代码后运行测试、ruff 和必要的类型检查。
+16. Project 2 不得从零实现 MCP 协议栈，不得重复开发官方 SDK 已提供的 Transport、Session 和 JSON-RPC 功能。
+17. Project 2 应先完成官方 SDK 的最小 Client 示例，再逐步增加 CLI、配置管理和 Adapter。
 
 ---
 
 # 八、当前第一项任务
 
-现在只开始 Project 1：Weather MCP Server。
+当前只推进 Project 1：Weather MCP Server。
 
 请先完成以下内容：
 
@@ -645,6 +758,6 @@ get_current_weather(city: str)
 7. 添加最小 Mock 单元测试。
 8. 提供本地启动命令。
 9. 提供 Codex MCP 配置示例。
-10. 列出我需要亲自手写一遍的文件和代码。
+10. 列出用户需要亲自手写一遍的文件和代码。
 
 开始前先输出项目结构和第一阶段实施计划，不要直接一次性生成全部文件。
