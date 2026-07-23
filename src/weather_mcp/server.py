@@ -8,6 +8,18 @@ GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search"
 
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 
+def get_weather_description(weather_code: int) -> str:
+    weather_description = {
+        0: "Clear sky",
+        1: "Mainly clear",
+        2: "Partly cloudy",
+        3: "Overcast",
+        45: "Fog",
+        48: "epositing rime fog",
+    }
+
+    return weather_description.get(weather_code, "Unknown weather")
+
 @mcp.tool()
 def get_current_weather(city: str) -> dict:
     """获取指定城市的天气"""
@@ -35,6 +47,7 @@ def get_current_weather(city: str) -> dict:
         "city":location["name"],
         "temperature": current["temperature_2m"],
         "weather_code": current["weather_code"],
+        "weather_description": get_weather_description(current["weather_code"]),
     }
 
 

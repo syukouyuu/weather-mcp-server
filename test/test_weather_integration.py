@@ -12,3 +12,4 @@ def test_get_current_weather() -> None:
 def test_get_coordinates() -> None:
     with pytest.raises(ValueError,match="City not found"):
         get_coordinates("abcdefg-not-a-city")
+
